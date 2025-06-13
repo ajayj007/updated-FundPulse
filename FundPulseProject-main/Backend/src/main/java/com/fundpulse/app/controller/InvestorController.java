@@ -47,26 +47,8 @@ public class InvestorController {
     }
 
 
-    @PostMapping(value = "/signup")
+    @PostMapping("/signup")
     public ResponseEntity<?> registerInvestor(@ModelAttribute InvestorForm investorForm) {
-         MultipartFile itrDocument = investorForm.getItrDocument();
-        if (itrDocument == null || itrDocument.isEmpty()) {
-            return ResponseEntity.badRequest().body("ITR Document is required for registration.");
-        }
-
-        // 2. Validate ITR document using OCR
-        try {
-            boolean isValid = itrValidationService.isITRDocument(itrDocument);
-            if (!isValid) {
-                return ResponseEntity.badRequest().body("Uploaded ITR document is not valid.");
-            }
-        } catch (IOException | TesseractException e) {
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error processing ITR document: " + e.getMessage());
-        }
-        System.out.println("Received request in registerInvestor()");
-        System.out.println("Investor Email: " + investorForm.getEmail());
         return investorService.registerInvestor(investorForm);
     }
 

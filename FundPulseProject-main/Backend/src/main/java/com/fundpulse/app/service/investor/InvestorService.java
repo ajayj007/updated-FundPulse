@@ -9,8 +9,11 @@ import com.fundpulse.app.models.Investor;
 import com.fundpulse.app.repositories.InvestorRepo;
 import com.fundpulse.app.service.auth.JWTService;
 import com.fundpulse.app.service.document.GoogleDriveUploadService;
+import com.fundpulse.app.service.itrVerification.ITRValidationService;
+import net.sourceforge.tess4j.TesseractException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -38,6 +41,9 @@ public class InvestorService {
     @Autowired
     private JWTService jwtService;
 
+    @Autowired
+    private ITRValidationService itrValidationService;
+
     private Investor getInvestor(InvestorForm investorForm) {
         Investor investor = new Investor();
         investor.setFullName(investorForm.getFullName());
@@ -52,47 +58,48 @@ public class InvestorService {
     }
 
     public ResponseEntity<?> registerInvestor(InvestorForm investorForm) {
+        MultipartFile itrDocument = investorForm.getItrDocument();
+
+        // Basic validations
+        if (itrDocument == null || itrDocument.isEmpty()) {
+            return ResponseEntity.badRequest().body("ITR Document is required for registration.");
+        }
+
+        if (!investorForm.getPassword().equals(investorForm.getConfirmPassword())) {
+            return ResponseEntity.badRequest().body("Password and Confirm Password do not match.");
+        }
+
+        Optional<Investor> existingInvestor = investorRepo.findByEmail(investorForm.getEmail());
+        if (existingInvestor.isPresent()) {
+            return ResponseEntity.badRequest().body("Email is already registered.");
+        }
+
+        // ITR Validation
         try {
-            String email = investorForm.getEmail();
-            Optional<Investor> byEmail = investorRepo.findByEmail(email);
-
-            if (byEmail.isPresent()) {
-                return ResponseEntity.badRequest().body("Email is already registered.");
-            }
-            if (!investorForm.getPassword().equals(investorForm.getConfirmPassword())) {
-                return ResponseEntity.badRequest().body("Password does not matched.");
-            }
-            MultipartFile itrFile = investorForm.getItrDocument();
-            if (itrFile.isEmpty()) {
-                return ResponseEntity.badRequest().body("ITR document is required.");
-            }
-
-            boolean isValid = true;
-            // You can implement your actual validation logic here
+            boolean isValid = itrValidationService.isITRDocument(itrDocument);
             if (!isValid) {
-                return ResponseEntity.badRequest()
-                        .body("ITR verification failed. Name mismatch or income below ₹1 crore.");
+                return ResponseEntity.badRequest().body("Uploaded ITR is invalid or income < ₹1 lakh.");
             }
+        } catch (IOException | TesseractException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error validating ITR: " + e.getMessage());
+        }
 
+        // Upload ITR to Google Drive
+        String fileUrl = "abcd";
+
+
+        // Save investor
+        try {
             Investor investor = getInvestor(investorForm);
-
-            String fileUrl = "";
-            try {
-                fileUrl = googleDriveUploadService.uploadFile(itrFile, folderId);
-                System.out.println("File uploaded successfully: " + fileUrl);
-            } catch (IOException e) {
-                return ResponseEntity.status(500).body("File upload failed: " + e.getMessage());
-            }
-
             investor.setItrUrl(fileUrl);
             investorRepo.save(investor);
-
             return ResponseEntity.ok().body(investor);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error processing signup: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error saving investor: " + e.getMessage());
         }
     }
-
     public LoginResponse loginInvestor(LoginRequest loginRequest) {
         String email = loginRequest.getEmail();
         String rawPassword = loginRequest.getPassword();

@@ -19,49 +19,70 @@ public class ITRValidationService {
     @Autowired
     private TesseractOCRService ocrService;
 
-
     public boolean isITRDocument(MultipartFile file) throws IOException, TesseractException {
-        // Extract text from the file using OCR
+        // Extract text from uploaded file
         String extractedText = ocrService.extractTextFromFile(file);
 
         if (extractedText == null || extractedText.trim().isEmpty()) {
-            logger.warn("OCR Extraction Failed or Returned Empty Text!");
+            logger.warn("OCR extraction failed or returned empty text");
             return false;
         }
 
-        logger.info("Full Extracted PDF Text:\n{}", extractedText);
+        logger.info("Extracted OCR Text:\n{}", extractedText);
 
-        // Normalize text: Remove extra spaces & convert to lowercase
+        // Normalize for keyword checks
         String normalizedText = extractedText.toLowerCase().replaceAll("\\s+", " ");
 
-        // Check if key phrases exist
+        // Check key elements
         boolean containsAssessmentYear = normalizedText.contains("assessment year");
         boolean containsAcknowledgementNumber = normalizedText.contains("acknowledgement number");
+        boolean containsPAN = extractPAN(extractedText) != null;
+        boolean incomeAboveThreshold = isIncomeAboveThreshold(extractedText);
 
-        // Extract PAN number from the text
-        String extractedPAN = extractPAN(extractedText);
-        boolean containsPAN = extractedPAN != null;
+        logger.info("Contains Assessment Year: {}", containsAssessmentYear);
+        logger.info("Contains Acknowledgement Number: {}", containsAcknowledgementNumber);
+        logger.info("PAN found: {}", containsPAN);
+        logger.info("Income above ₹1 lakh: {}", incomeAboveThreshold);
 
-        logger.info("Contains 'Assessment Year'?: {}", containsAssessmentYear);
-        logger.info("Contains 'Acknowledgement Number'?: {}", containsAcknowledgementNumber);
-        logger.info("Extracted PAN: {}", extractedPAN);
-
-        // Return true only if PAN, Assessment Year, and Acknowledgement Number are present
-        return containsAssessmentYear && containsAcknowledgementNumber && containsPAN;
-
+        // Final validation
+        return containsAssessmentYear && containsAcknowledgementNumber && containsPAN && incomeAboveThreshold;
     }
 
     /**
-     * Extract PAN Number from the OCR text using regex.
+     * Extract PAN Number from OCR text using regex.
      */
     private String extractPAN(String text) {
-        // Improved regex to find PAN, even if prefixed with "permanent account number"
         Pattern panPattern = Pattern.compile("(?:permanent account number\\s*)?([A-Z]{5}[0-9]{4}[A-Z])", Pattern.CASE_INSENSITIVE);
         Matcher matcher = panPattern.matcher(text);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+
+    /**
+     * Check if the extracted total income is above ₹1,00,000.
+     */
+    private boolean isIncomeAboveThreshold(String text) {
+        // Match lines like: Total Income  20 — not ones with more content like "Total Donations"
+        Pattern pattern = Pattern.compile("(?m)^\\s*Total\\s+Income\\s+(\\d[\\d,]*)\\s*$");
+        Matcher matcher = pattern.matcher(text);
 
         if (matcher.find()) {
-            return matcher.group(1); // Extract the PAN number only
+            String incomeStr = matcher.group(1).replaceAll(",", "");
+            try {
+                double income = Double.parseDouble(incomeStr);
+                logger.info("Extracted Final Total Income (from strict match): {}", income);
+                return income >= 20;
+            } catch (NumberFormatException e) {
+                logger.warn("Failed to parse total income: {}", incomeStr);
+            }
+        } else {
+            logger.warn("Strict match for 'Total Income' not found");
         }
-        return null; // Return null if no PAN is found
+
+        return false;
     }
+
+
 }

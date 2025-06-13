@@ -18,38 +18,56 @@ public class GoogleDriveUploadService {
 
     @Autowired
     private DocumentUploadConfig documentUploadConfig; // Your Drive config
+    public String uploadFile(MultipartFile file, String folderId) {
+        java.io.File tempFile = null;
 
-    public String uploadFile(MultipartFile file, String folderId) throws IOException {
-        // Get Drive instance
-        Drive drive = documentUploadConfig.getDriveInstance();
+        try {
+            // Create temp file with original extension
+            String originalName = file.getOriginalFilename();
+            String extension = originalName != null && originalName.contains(".")
+                    ? originalName.substring(originalName.lastIndexOf('.'))
+                    : ".pdf"; // fallback
+            tempFile = java.io.File.createTempFile("upload-", extension);
 
-        // Convert MultipartFile to a temporary file
-        java.io.File tempFile = java.io.File.createTempFile("upload-", ".pdf");
-        Files.copy(file.getInputStream(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            // Transfer multipart content into temp file
+            file.transferTo(tempFile);
 
-        // Set file metadata and assign it to a specific folder
-        File fileMetadata = new File();
-        fileMetadata.setName(file.getOriginalFilename());
-        fileMetadata.setMimeType("application/pdf");
+            // Get Google Drive instance
+            Drive drive = documentUploadConfig.getDriveInstance();
 
-        // Assign file to a specific folder
-        if (folderId != null && !folderId.isEmpty()) {
-            fileMetadata.setParents(Collections.singletonList(folderId));
+            // Set file metadata
+            File fileMetadata = new File();
+            fileMetadata.setName(originalName);
+            fileMetadata.setMimeType("application/pdf");
+
+            if (folderId != null && !folderId.isEmpty()) {
+                fileMetadata.setParents(Collections.singletonList(folderId));
+            }
+
+            // Upload to Google Drive
+            File uploadedFile = drive.files()
+                    .create(fileMetadata, new com.google.api.client.http.FileContent("application/pdf", tempFile))
+                    .setFields("id, webViewLink")
+                    .execute();
+
+            // Make file public
+            Permission permission = new Permission()
+                    .setType("anyone")
+                    .setRole("reader");
+            drive.permissions().create(uploadedFile.getId(), permission).execute();
+
+            return uploadedFile.getWebViewLink();
+
+        } catch (Exception e) {
+            System.err.println("Google Drive upload failed: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        } finally {
+            // Clean up temporary file
+            if (tempFile != null && tempFile.exists()) {
+                tempFile.delete();
+            }
         }
-
-        // Upload the file to Google Drive inside the specified folder
-        File uploadedFile = drive.files()
-                .create(fileMetadata, new com.google.api.client.http.FileContent("application/pdf", tempFile))
-                .setFields("id, webViewLink")
-                .execute();
-
-        // Make the file publicly accessible (Optional)
-        Permission permission = new Permission()
-                .setType("anyone")
-                .setRole("reader");
-        drive.permissions().create(uploadedFile.getId(), permission).execute();
-
-        // Return the sharable link
-        return uploadedFile.getWebViewLink();
     }
+
 }
