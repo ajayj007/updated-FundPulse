@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { connectWallet } from "../utils/walletUtils";
+import { connectWallet, getWalletBalance } from "../utils/walletUtils";
 
 function Navbar() {
   const [isConnected, setIsConnected] = useState(false);
@@ -13,18 +13,22 @@ function Navbar() {
 
   // Check if we're on an investor page
   const isInvestorPage = location.pathname.startsWith("/investor");
+  const isSPage = location.pathname.startsWith("/startup");
   
   const handleConnectWallet = async () => {
-    try {
-      const { address, connected } = await connectWallet();
-      setIsConnected(connected);
-      setWalletAddress(address);
-      // Mock balance for demo purposes
-      setWalletBalance("12.45");
-    } catch (error) {
-      console.error("Failed to connect wallet:", error);
-    }
-  };
+  try {
+    const { address, provider, connected } = await connectWallet();
+    if (!connected || !provider) return;
+
+    const balance = await getWalletBalance(provider, address);
+    setIsConnected(connected);
+    setWalletAddress(address);
+    setWalletBalance(balance);
+  } catch (error) {
+    console.error("Failed to connect wallet:", error);
+  }
+};
+
 
   return (
     <nav className="bg-white mb-5 shadow-md">
@@ -40,13 +44,14 @@ function Navbar() {
               </span>
             </Link>
 
-            {/* Investor Balance (only shown on investor pages) */}
-            {isInvestorPage && isConnected && (
-              <div className="ml-6 hidden md:flex items-center">
-                <span className="text-gray-700 font-medium">Balance:</span>
-                <span className="ml-2 text-green-600 font-bold">{walletBalance} ETH</span>
-              </div>
-            )}
+            {isConnected && (
+             <div className="px-3 py-2 text-gray-700">
+             <span className="font-medium">Balance:</span>
+             <span className="ml-2 text-green-600 font-bold">{walletBalance} ETH</span>
+             </div>
+      )}
+
+
           </div>
 
           {/* Desktop menu */}
@@ -185,12 +190,13 @@ function Navbar() {
       {mobileMenuOpen && (
         <div className="md:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            {isInvestorPage && isConnected && (
-              <div className="px-3 py-2 text-gray-700">
-                <span className="font-medium">Balance:</span>
-                <span className="ml-2 text-green-600 font-bold">{walletBalance} ETH</span>
-              </div>
+            {isConnected && (
+            <div className="ml-6 hidden md:flex items-center">
+            <span className="text-gray-700 font-medium">Balance:</span>
+            <span className="ml-2 text-green-600 font-bold">{walletBalance} ETH</span>
+            </div>
             )}
+
 
             {isInvestorPage ? (
               // Investor Mobile Navigation
