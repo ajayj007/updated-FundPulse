@@ -7,20 +7,24 @@ export default function LoginStartup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const navigate = useNavigate(); // React Router navigation
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Use FormData to append form data
-    const formData = new FormData();
-    formData.append("email", email);
-    formData.append("password", password);
+    if (!email || !password) {
+      setError("Please fill in all fields.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
 
     try {
       const response = await axios.post(
-        `${API_BASE_URL}/startup/login`, // Replace with actual base URL
-        formData, // Send FormData instead of the raw object
+        `${API_BASE_URL}/startup/login`,
+        { email, password },
         {
           headers: {
             "Content-Type": "application/json",
@@ -28,23 +32,35 @@ export default function LoginStartup() {
         }
       );
 
-      console.log("Login successful:", response.data.startupId);
+      const { token, startupId } = response.data;
+console.log(response.data);
+      if (token && startupId) {
+        // Save to localStorage
+        localStorage.setItem("token", token);
+        localStorage.setItem("startupId", startupId);
+        localStorage.setItem("userType", "startup");
 
-      // Save the startupId to localStorage
-      localStorage.setItem("startupId", response.data.startupId);
+        console.log("Login successful:", startupId);
 
-      // Redirect or do something after successful login
-      navigate("/startup"); // For example, navigate to a dashboard page
+        navigate("/startup");
+      } else {
+        setError("Login failed. Missing token or startupId.");
+      }
+
     } catch (error) {
       console.error("Error logging in:", error);
-      setError("Failed to log in. Please check your credentials.");
+      setError(
+        error.response?.data?.message || "Failed to log in. Please check your credentials."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900">
       <div className="bg-gray-800 bg-opacity-80 backdrop-blur-md p-8 rounded-xl shadow-2xl max-w-sm w-full">
-        <h2 className="text-3xl font-bold text-white text-center mb-6"> Startup Login</h2>
+        <h2 className="text-3xl font-bold text-white text-center mb-6">Startup Login</h2>
         {error && <p className="text-red-500 text-center mb-3">{error}</p>}
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
@@ -56,6 +72,7 @@ export default function LoginStartup() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               name="email"
+              required
             />
           </div>
 
@@ -67,14 +84,16 @@ export default function LoginStartup() {
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
             />
           </div>
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition duration-300 shadow-md"
+            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition duration-300 shadow-md disabled:opacity-50"
+            disabled={loading}
           >
-            Login
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
       </div>

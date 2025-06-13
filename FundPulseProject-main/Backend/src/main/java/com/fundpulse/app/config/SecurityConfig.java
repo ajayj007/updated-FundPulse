@@ -12,8 +12,10 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -33,20 +35,28 @@ public class SecurityConfig {
     @Autowired
     private BCryptPasswordEncoder encoder;
 
+    @Autowired
+    private JWTFilter jwtFilter;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
         return httpSecurity
-                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // ✅ FIXED: Now properly defined
-                .csrf(AbstractHttpConfigurer::disable) // Disable CSRF for API calls
-//                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Use JWT if applicable
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-//                        .requestMatchers("/investor/login", "/startup/login", "/investor/signup", "/startup/signup").permitAll()
-//                        .requestMatchers("/investor/dashboard").hasRole("INVESTOR")
-//                        .requestMatchers("/startup/dashboard").hasRole("STARTUP")
+                        .requestMatchers(
+                                "/investor/login",  // ✅ Allow investor login
+                                "/startup/login",   // ✅ Allow startup login
+                                "/investor/signup", // ✅ Allow investor signup
+                                "/startup/signup"   // ✅ Allow startup signup
+                        ).permitAll()
+                        .requestMatchers("/investor/**", "/startup/**").authenticated()
                         .anyRequest().permitAll()
                 )
                 .authenticationProvider(investorAuthenticationProvider())
                 .authenticationProvider(startupAuthenticationProvider())
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
