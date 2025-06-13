@@ -7,6 +7,7 @@ import com.fundpulse.app.service.proposal.ProposalService;
 
 import com.fundpulse.app.service.startup.StartupService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,12 +32,29 @@ public class StartupController {
     }
 
     @PostMapping("/login")
-    public Startup LoginInvestor(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> loginStartup(@RequestBody LoginRequest loginRequest) {
+        if (loginRequest.getEmail() == null || loginRequest.getPassword() == null) {
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body("Email and password are required.");
+        }
 
-        Startup startup = startupService.loginStartup(loginRequest);
-        return startup;
-
+        try {
+            StartupLoginResponse loginResponse = startupService.loginStartup(loginRequest);
+            if (loginResponse != null) {
+                return ResponseEntity.ok(loginResponse);
+            } else {
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .body("Invalid email or password.");
+            }
+        } catch (Exception e) {
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred while processing your request.");
+        }
     }
+
 
     @PostMapping("/add-proposal/{startupId}")
     public ResponseEntity<?> addProposal(

@@ -7,20 +7,19 @@ export default function LoginInvestor() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false); // Loading state
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Basic client-side validation
     if (!email || !password) {
       setError("Please fill in all fields.");
       return;
     }
 
-    setLoading(true); // Start loading
-    setError(""); // Clear previous errors
+    setLoading(true);
+    setError("");
 
     try {
       const response = await axios.post(
@@ -32,26 +31,27 @@ export default function LoginInvestor() {
           },
         }
       );
-      localStorage.setItem("investorId", response.data.investorId);
-      console.log("Login successful:", response.data);
 
-      // Store investor data in localStorage
-      // localStorage.setItem("investor", JSON.stringify(response.data));
+      const { token, investorId } = response.data; // assuming backend returns both
+      if (token && investorId) {
+        localStorage.setItem("token", token);
+        localStorage.setItem("userType", "investor");
+        localStorage.setItem("investorId", investorId);
 
-      // // Additionally store investorId separately for easy access
-      // if (response.data.investorId) {
-      //   localStorage.setItem("investorId", response.data.investorId);
-      // }
+        console.log("Login successful:", response.data);
+        navigate("/investor");
+      } else {
+        setError("Login failed. Missing token or investorId.");
+      }
 
-      // Redirect to dashboard
-      navigate("/investor");
     } catch (error) {
       console.error("Error logging in:", error);
-
-      // Display specific error message from the backend
-      setError(error.response?.data?.message || "Failed to log in. Please check your credentials.");
+      setError(
+        error.response?.data?.message || 
+        "Failed to log in. Please check your credentials."
+      );
     } finally {
-      setLoading(false); // Stop loading
+      setLoading(false);
     }
   };
 
@@ -64,8 +64,8 @@ export default function LoginInvestor() {
           <div className="mb-4">
             <label className="block text-gray-300 mb-1">Email:</label>
             <input
+            name="email"
               type="email"
-              name="email"
               className="w-full px-4 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition"
               placeholder="Enter your email"
               value={email}
@@ -77,6 +77,7 @@ export default function LoginInvestor() {
           <div className="mb-4">
             <label className="block text-gray-300 mb-1">Password:</label>
             <input
+            name="password"
               type="password"
               className="w-full px-4 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition"
               placeholder="Enter your password"
@@ -89,7 +90,7 @@ export default function LoginInvestor() {
           <button
             type="submit"
             className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition duration-300 shadow-md disabled:opacity-50"
-            disabled={loading} // Disable button while loading
+            disabled={loading}
           >
             {loading ? "Logging in..." : "Login"}
           </button>

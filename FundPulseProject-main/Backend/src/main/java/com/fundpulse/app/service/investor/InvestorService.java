@@ -3,9 +3,11 @@ package com.fundpulse.app.service.investor;
 import com.fundpulse.app.ResourseNotFoundExaception;
 import com.fundpulse.app.dto.InvestorForm;
 import com.fundpulse.app.dto.LoginRequest;
+import com.fundpulse.app.dto.LoginResponse;
 import com.fundpulse.app.dto.UpdateForm;
 import com.fundpulse.app.models.Investor;
 import com.fundpulse.app.repositories.InvestorRepo;
+import com.fundpulse.app.service.auth.JWTService;
 import com.fundpulse.app.service.document.GoogleDriveUploadService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +34,9 @@ public class InvestorService {
 
     @Autowired
     private BCryptPasswordEncoder encoder;
+
+    @Autowired
+    private JWTService jwtService;
 
     private Investor getInvestor(InvestorForm investorForm) {
         Investor investor = new Investor();
@@ -88,22 +93,22 @@ public class InvestorService {
         }
     }
 
-    public Investor loginInvestor(LoginRequest loginRequest) {
+    public LoginResponse loginInvestor(LoginRequest loginRequest) {
         String email = loginRequest.getEmail();
-        String rawPassword = loginRequest.getPassword(); // User's input password
-
-        System.out.println(email + " " + rawPassword);
+        String rawPassword = loginRequest.getPassword();
 
         Investor investor = investorRepo.findByEmail(email)
                 .orElseThrow(() -> new ResourseNotFoundExaception("Investor not found!"));
 
-        // ✅ Compare raw password with stored hashed password using BCrypt
         if (!encoder.matches(rawPassword, investor.getPassword())) {
             throw new ResourseNotFoundExaception("Invalid credentials!");
         }
 
-        return investor;
+        String token = jwtService.generateToken(investor.getEmail());
+
+        return new LoginResponse(token, investor.getInvestorId());
     }
+
 
     public ResponseEntity<?> getInvestors() {
         List<Investor> all = investorRepo.findAll();

@@ -1,11 +1,10 @@
 package com.fundpulse.app.service.startup;
 
 import com.fundpulse.app.ResourseNotFoundExaception;
-import com.fundpulse.app.dto.LoginRequest;
-import com.fundpulse.app.dto.StartUpForm;
-import com.fundpulse.app.dto.UpdateForm;
+import com.fundpulse.app.dto.*;
 import com.fundpulse.app.models.Startup;
 import com.fundpulse.app.repositories.StartupRepo;
+import com.fundpulse.app.service.auth.JWTService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -21,6 +20,9 @@ public class StartupService {
 
     @Autowired
     private BCryptPasswordEncoder encoder;
+
+    @Autowired
+    private JWTService jwtService;
 
     private Startup getStartup(StartUpForm startUpForm) {
         Startup startup = new Startup();
@@ -44,22 +46,22 @@ public class StartupService {
         }
     }
 
-    public Startup loginStartup(LoginRequest loginRequest) {
+    public StartupLoginResponse loginStartup(LoginRequest loginRequest) {
         String email = loginRequest.getEmail();
-        String rawPassword = loginRequest.getPassword(); // User's input password
-
-        System.out.println(email + " " + rawPassword);
+        String rawPassword = loginRequest.getPassword();
 
         Startup startup = startupRepo.findByEmail(email)
                 .orElseThrow(() -> new ResourseNotFoundExaception("Startup not found!"));
 
-        // ✅ Compare raw password with stored hashed password using BCrypt
         if (!encoder.matches(rawPassword, startup.getPassword())) {
             throw new ResourseNotFoundExaception("Invalid credentials!");
         }
 
-        return startup;
+        String token = jwtService.generateToken(startup.getEmail());
+
+        return new StartupLoginResponse(token, startup.getStartupId());
     }
+
 
     public ResponseEntity<?> getStartupById(String startupId) {
         Optional<Startup> byId = startupRepo.findById(startupId);

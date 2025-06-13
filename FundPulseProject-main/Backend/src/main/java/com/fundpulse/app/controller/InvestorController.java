@@ -1,9 +1,6 @@
 package com.fundpulse.app.controller;
 
-import com.fundpulse.app.dto.InvestorForm;
-import com.fundpulse.app.dto.LoginRequest;
-import com.fundpulse.app.dto.PasswordUpdateRequest;
-import com.fundpulse.app.dto.UpdateForm;
+import com.fundpulse.app.dto.*;
 import com.fundpulse.app.models.Investor;
 import com.fundpulse.app.service.investor.InvestorService;
 import com.fundpulse.app.service.itrVerification.ITRValidationService;
@@ -22,12 +19,11 @@ public class InvestorController {
 
     @Autowired
     private InvestorService investorService;
+
     @Autowired
     private ITRValidationService itrValidationService;
-
     @PostMapping("/login")
     public ResponseEntity<?> loginInvestor(@RequestBody LoginRequest loginRequest) {
-        // Validate input
         if (loginRequest.getEmail() == null || loginRequest.getPassword() == null) {
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
@@ -35,9 +31,9 @@ public class InvestorController {
         }
 
         try {
-            Investor investor = investorService.loginInvestor(loginRequest);
-            if (investor != null) {
-                return ResponseEntity.ok(investor); // Return investor data
+            LoginResponse loginResponse = investorService.loginInvestor(loginRequest);
+            if (loginResponse != null) {
+                return ResponseEntity.ok(loginResponse);
             } else {
                 return ResponseEntity
                         .status(HttpStatus.UNAUTHORIZED)
@@ -50,9 +46,10 @@ public class InvestorController {
         }
     }
 
+
     @PostMapping(value = "/signup")
     public ResponseEntity<?> registerInvestor(@ModelAttribute InvestorForm investorForm) {
-        MultipartFile itrDocument = investorForm.getItrDocument();
+         MultipartFile itrDocument = investorForm.getItrDocument();
         if (itrDocument == null || itrDocument.isEmpty()) {
             return ResponseEntity.badRequest().body("ITR Document is required for registration.");
         }
